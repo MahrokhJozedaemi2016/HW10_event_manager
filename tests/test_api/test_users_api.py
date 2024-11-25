@@ -68,8 +68,9 @@ async def test_create_user_duplicate_email(async_client, verified_user):
         "password": "AnotherPassword123!",
     }
     response = await async_client.post("/register/", json=user_data)
-    assert response.status_code == 400
+    assert response.status_code == 400  # Update to match actual API behavior
     assert "Email already exists" in response.json().get("detail", "")
+
 
 @pytest.mark.asyncio
 async def test_create_user_invalid_email(async_client):
@@ -189,3 +190,78 @@ async def test_list_users_unauthorized(async_client, user_token):
         headers={"Authorization": f"Bearer {user_token}"}
     )
     assert response.status_code == 403  # Forbidden, as expected for regular user
+    
+@pytest.mark.asyncio
+async def test_update_user_bio(async_client, admin_user, admin_token):
+    updated_data = {"bio": "This is a new bio for the user."}
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["bio"] == updated_data["bio"]
+
+
+@pytest.mark.asyncio
+async def test_update_user_profile_picture_url(async_client, admin_user, admin_token):
+    updated_data = {"profile_picture_url": "http://example.com/new-profile-picture.jpg"}
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["profile_picture_url"] == updated_data["profile_picture_url"]
+
+
+@pytest.mark.asyncio
+async def test_update_user_bio_and_profile_picture(async_client, admin_user, admin_token):
+    updated_data = {
+        "bio": "This is a new bio.",
+        "profile_picture_url": "http://example.com/new-profile-picture.jpg"
+    }
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["bio"] == updated_data["bio"]
+    assert response.json()["profile_picture_url"] == updated_data["profile_picture_url"]
+
+
+@pytest.mark.asyncio
+async def test_update_user_invalid_profile_picture_url(async_client, admin_user, admin_token):
+    # Input with an invalid profile picture URL
+    updated_data = {"profile_picture_url": "invalid-url"}  # Invalid format
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # Send the PUT request to update the user
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    
+    # Assert the response
+    assert response.status_code == 422  # Unprocessable Entity
+    assert "detail" in response.json(), "Error response must include 'detail'."
+    assert any("value_error" in error["type"] for error in response.json().get("detail", [])), \
+        "Expected validation error for profile picture URL."
+
+
+
+@pytest.mark.asyncio
+async def test_update_user_invalid_bio(async_client, admin_user, admin_token):
+    # Input with a bio that exceeds the maximum allowed length
+    updated_data = {"bio": "x" * 300}  # Exceeds 255 characters
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # Send the PUT request to update the user
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    
+    # Assert the response
+    assert response.status_code == 422  # Unprocessable Entity
+    assert "detail" in response.json(), "Error response must include 'detail'."
+    assert any("value_error" in error["type"] for error in response.json().get("detail", [])), \
+        "Expected validation error for bio length."
+
+@pytest.mark.asyncio
+async def test_update_user_multiple_invalid_fields(async_client, admin_user, admin_token):
+    updated_data = {
+        "bio": "x" * 300,  # Too long
+        "profile_picture_url": "invalid-url"  # Invalid URL
+    }
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    assert response.status_code == 422  # Unprocessable Entity
+    print(response.json())  # Debugging to inspect the actual response structure
+    assert "value_error" in str(response.json().get("detail", "")), "Validation error expected for multiple invalid fields."
