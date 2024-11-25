@@ -9,7 +9,7 @@ from app.dependencies import get_email_service, get_settings
 from app.models.user_model import User
 from app.schemas.user_schemas import UserCreate, UserUpdate
 from app.utils.nickname_gen import generate_nickname
-from app.utils.security import generate_verification_token, hash_password, verify_password
+from app.utils.security import generate_verification_token, hash_password, verify_password, validate_password
 from uuid import UUID
 from app.services.email_service import EmailService
 from app.models.user_model import UserRole
@@ -64,7 +64,13 @@ class UserService:
             if existing_nickname_user:
                 logger.error("User with given nickname already exists.")
                 return None
-
+            
+            # Validate the password for complexity
+            try:
+                validate_password(validated_data['password'])
+            except ValueError as ve:
+                logger.error(f"Password validation failed: {ve}")
+                raise ValidationError(f"Password validation error: {ve}")
             # Hash the password
             validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
 
@@ -101,8 +107,13 @@ class UserService:
                     logger.error("Nickname already taken by another user.")
                     return None
 
-            # Hash the password if it's being updated
+            # Validate and hash the password if it's being updated
             if 'password' in validated_data:
+                try:
+                    validate_password(validated_data["password"])
+                except ValueError as ve:
+                    logger.error(f"Password validation failed during update: {ve}")
+                    raise ValidationError(f"Password validation error: {ve}")
                 validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
 
             # Update the user in the database
@@ -117,6 +128,9 @@ class UserService:
                 return updated_user
             else:
                 logger.error(f"User {user_id} not found after update attempt.")
+            return None
+        except ValidationError as e:
+            logger.error(f"Validation error during user update: {e}")
             return None
         except Exception as e:
             logger.error(f"Error during user update: {e}")
