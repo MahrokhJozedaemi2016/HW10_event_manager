@@ -9,14 +9,9 @@ from app.dependencies import get_email_service, get_settings
 from app.models.user_model import User, UserRole
 from app.schemas.user_schemas import UserCreate, UserUpdate
 from app.utils.nickname_gen import generate_nickname
-<<<<<<< HEAD
 from app.utils.security import generate_verification_token, hash_password, verify_password, validate_password
 from uuid import UUID
-=======
-from app.utils.security import generate_verification_token, hash_password, verify_password
->>>>>>> d6ff98b5ed95f6e876fb1a916e69c4add1615597
 from app.services.email_service import EmailService
-from uuid import UUID
 import logging
 
 settings = get_settings()
@@ -76,6 +71,7 @@ class UserService:
             except ValueError as ve:
                 logger.error(f"Password validation failed: {ve}")
                 raise ValidationError(f"Password validation error: {ve}")
+
             # Hash the password
             validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
 
@@ -100,9 +96,8 @@ class UserService:
             return None
 
     @classmethod
-    async def update(cls, session: AsyncSession, user_id: UUID, update_data: Dict[str,str]) -> Optional[User]:
+    async def update(cls, session: AsyncSession, user_id: UUID, update_data: Dict[str, str]) -> Optional[User]:
         try:
-            # Validate the update data using the UserUpdate schema
             validated_data = UserUpdate(**update_data).dict(exclude_unset=True)
 
             # Check for nickname uniqueness if being updated
@@ -112,7 +107,6 @@ class UserService:
                     logger.error("Nickname already taken by another user.")
                     raise ValueError("Nickname already in use.")
 
-<<<<<<< HEAD
             # Validate and hash the password if it's being updated
             if 'password' in validated_data:
                 try:
@@ -121,13 +115,12 @@ class UserService:
                     logger.error(f"Password validation failed during update: {ve}")
                     raise ValidationError(f"Password validation error: {ve}")
                 validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
-=======
+
             # Validate URL formats if URLs are being updated
             for field in ["profile_picture_url", "linkedin_profile_url", "github_profile_url"]:
                 if field in validated_data:
                     if not validated_data[field].startswith(("http://", "https://")):
                         raise ValueError(f"Invalid URL format for {field}.")
->>>>>>> d6ff98b5ed95f6e876fb1a916e69c4add1615597
 
             # Update the user in the database
             query = (
@@ -146,20 +139,10 @@ class UserService:
                 return updated_user
             else:
                 logger.error(f"User {user_id} not found after update attempt.")
-<<<<<<< HEAD
-            return None
-        except ValidationError as e:
-            logger.error(f"Validation error during user update: {e}")
-            return None
-=======
                 return None
         except ValidationError as ve:
             logger.error(f"Validation error during user update: {ve}")
             raise ValueError("Invalid data provided for update.")
->>>>>>> d6ff98b5ed95f6e876fb1a916e69c4add1615597
-        except Exception as e:
-            logger.error(f"Unexpected error during user update: {e}")
-            return None
 
     @classmethod
     async def delete(cls, session: AsyncSession, user_id: UUID) -> bool:
@@ -214,8 +197,8 @@ class UserService:
         user = await cls.get_by_id(session, user_id)
         if user:
             user.hashed_password = hashed_password
-            user.failed_login_attempts = 0  # Reset failed login attempts
-            user.is_locked = False  # Unlock the user account
+            user.failed_login_attempts = 0
+            user.is_locked = False
             session.add(user)
             await session.commit()
             return True
@@ -226,7 +209,7 @@ class UserService:
         user = await cls.get_by_id(session, user_id)
         if user and user.verification_token == token:
             user.email_verified = True
-            user.verification_token = None  # Clear the token once used
+            user.verification_token = None
             user.role = UserRole.AUTHENTICATED
             session.add(user)
             await session.commit()
@@ -244,7 +227,7 @@ class UserService:
         user = await cls.get_by_id(session, user_id)
         if user and user.is_locked:
             user.is_locked = False
-            user.failed_login_attempts = 0  # Optionally reset failed login attempts
+            user.failed_login_attempts = 0
             session.add(user)
             await session.commit()
             return True
