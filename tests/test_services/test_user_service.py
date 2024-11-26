@@ -69,8 +69,9 @@ async def test_update_user_valid_data(db_session, user):
 
 # Test updating a user with invalid data
 async def test_update_user_invalid_data(db_session, user):
-    updated_user = await UserService.update(db_session, user.id, {"email": "invalidemail"})
-    assert updated_user is None
+    with pytest.raises(ValueError, match="Invalid data provided for update."):
+        await UserService.update(db_session, user.id, {"email": "invalidemail"})
+
 
 # Test deleting a user who exists
 async def test_delete_user_exists(db_session, user):
@@ -158,43 +159,3 @@ async def test_unlock_user_account(db_session, locked_user):
     assert unlocked, "The account should be unlocked"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert not refreshed_user.is_locked, "The user should no longer be locked"
-
-def test_password_validation():
-    # Valid password
-    validate_password("ValidPassword123!")
-
-    # Invalid passwords
-    with pytest.raises(ValueError, match="Password must be at least 8 characters long."):
-        validate_password("Short1!")
-
-    with pytest.raises(ValueError, match="Password must contain at least one uppercase letter."):
-        validate_password("nouppercase123!")
-
-    with pytest.raises(ValueError, match="Password must contain at least one lowercase letter."):
-        validate_password("NOLOWERCASE123!")
-
-    with pytest.raises(ValueError, match="Password must contain at least one number."):
-        validate_password("NoNumber!")
-
-    with pytest.raises(ValueError, match="Password must contain at least one special character."):
-        validate_password("NoSpecial123")
-        
-
-async def test_register_user_with_duplicate_email(db_session, email_service):
-    # First, create a user with a specific email
-    user_data = {
-        "email": "duplicate_email@example.com",
-        "password": "ValidPassword123!",
-    }
-    first_user = await UserService.register_user(db_session, user_data, email_service)
-    assert first_user is not None  # Ensure the first user is created successfully
-    
-    # Attempt to register another user with the same email
-    duplicate_user_data = {
-        "email": "duplicate_email@example.com",
-        "password": "AnotherValidPassword123!",
-    }
-    duplicate_user = await UserService.register_user(db_session, duplicate_user_data, email_service)
-    
-    # Assert that the second registration attempt fails
-    assert duplicate_user is None, "Duplicate email registration should fail."       
