@@ -26,9 +26,12 @@ from app.utils.security import hash_password
 from app.utils.template_manager import TemplateManager
 from app.services.email_service import EmailService
 from app.services.jwt_service import create_access_token
+from app.utils.security import validate_password
+from datetime import timedelta
 
 # Initialize Faker for generating test data
 fake = Faker()
+Faker.seed(42)
 
 # Load application settings
 settings = get_settings()
@@ -92,12 +95,13 @@ async def db_session(setup_database):
 @pytest.fixture(scope="function")
 async def locked_user(db_session):
     """Creates a locked user."""
+    validate_password("ValidPass#1234")
     user_data = {
         "nickname": fake.user_name(),
         "first_name": fake.first_name(),
         "last_name": fake.last_name(),
         "email": fake.email(),
-        "hashed_password": hash_password("MySuperPassword$1234"),
+        "hashed_password": hash_password("ValidPass#1234"),
         "role": UserRole.AUTHENTICATED,
         "email_verified": False,
         "is_locked": True,
@@ -111,12 +115,13 @@ async def locked_user(db_session):
 @pytest.fixture(scope="function")
 async def user(db_session):
     """Creates a regular user."""
+    validate_password("ValidPass#1234")
     user_data = {
         "nickname": fake.user_name(),
         "first_name": fake.first_name(),
         "last_name": fake.last_name(),
         "email": fake.email(),
-        "hashed_password": hash_password("MySuperPassword$1234"),
+        "hashed_password": hash_password("ValidPass#1234"),
         "role": UserRole.AUTHENTICATED,
         "email_verified": False,
         "is_locked": False,
@@ -130,15 +135,17 @@ async def user(db_session):
 @pytest.fixture(scope="function")
 async def verified_user(db_session):
     """Creates a verified user."""
+    password = "ValidPass#1234"  # Fixed password for consistency
+    validate_password("MySuperPassword$1234")
     user_data = {
         "nickname": fake.user_name(),
         "first_name": fake.first_name(),
         "last_name": fake.last_name(),
-        "email": fake.email(),
+        "email": "verified_user@example.com",  # Fixed email for consistency
         "hashed_password": hash_password("MySuperPassword$1234"),
         "role": UserRole.AUTHENTICATED,
-        "email_verified": True,
-        "is_locked": False,
+        "email_verified": True,  # Ensure email is verified
+        "is_locked": False,  # Ensure user is not locked
     }
     user = User(**user_data)
     db_session.add(user)
@@ -146,15 +153,17 @@ async def verified_user(db_session):
     return user
 
 
+
 @pytest.fixture(scope="function")
 async def unverified_user(db_session):
     """Creates an unverified user."""
+    validate_password("ValidPass#1234")
     user_data = {
         "nickname": fake.user_name(),
         "first_name": fake.first_name(),
         "last_name": fake.last_name(),
         "email": fake.email(),
-        "hashed_password": hash_password("MySuperPassword$1234"),
+        "hashed_password": hash_password("ValidPass#1234"),
         "role": UserRole.AUTHENTICATED,
         "email_verified": False,
         "is_locked": False,
@@ -170,12 +179,14 @@ async def users_with_same_role_50_users(db_session):
     """Creates 50 users with the same role."""
     users = []
     for _ in range(50):
+        generated_password = "ValidPassword123!"
+        validate_password(generated_password)
         user_data = {
             "nickname": fake.user_name(),
             "first_name": fake.first_name(),
             "last_name": fake.last_name(),
             "email": fake.email(),
-            "hashed_password": hash_password(fake.password()),
+            "hashed_password": hash_password(generated_password),
             "role": UserRole.AUTHENTICATED,
             "email_verified": False,
             "is_locked": False,
@@ -189,13 +200,14 @@ async def users_with_same_role_50_users(db_session):
 
 @pytest.fixture(scope="function")
 async def admin_user(db_session):
+    validate_password("SecurePassword123!")
     """Creates an admin user."""
     user = User(
         nickname="admin_user",
         email="admin@example.com",
         first_name="John",
         last_name="Doe",
-        hashed_password=hash_password("securepassword"),
+        hashed_password=hash_password("SecurePassword123!"),
         role=UserRole.ADMIN,
         is_locked=False,
     )
@@ -206,13 +218,14 @@ async def admin_user(db_session):
 
 @pytest.fixture(scope="function")
 async def manager_user(db_session):
+    validate_password("SecurePassword123!")
     """Creates a manager user."""
     user = User(
         nickname="manager_user",
         email="manager@example.com",
         first_name="Jane",
         last_name="Doe",
-        hashed_password=hash_password("securepassword"),
+        hashed_password=hash_password("SecurePassword123!"),
         role=UserRole.MANAGER,
         is_locked=False,
     )
@@ -293,7 +306,8 @@ def login_request_data():
 async def user_token(verified_user):
     """Generates a token for a verified user."""
     token_data = {"sub": str(verified_user.id), "role": "AUTHENTICATED"}
-    return create_access_token(data=token_data)
+    token = create_access_token(data=token_data, expires_delta=timedelta(minutes=15))
+    return token
 
 
 @pytest.fixture
@@ -322,3 +336,32 @@ def user_base_data_invalid():
         "linkedin_profile_url": "https://linkedin.com/in/johndoe",
         "github_profile_url": "https://github.com/johndoe",
     }
+ 
+@pytest.fixture
+def invalid_password_data():
+    """Provides data for testing invalid passwords."""
+    return {
+        "email": "test@example.com",
+        "password": "short",
+    }
+    
+    
+@pytest.fixture
+async def user_with_invalid_data(db_session):
+    """Creates a user with invalid data for testing."""
+    invalid_password = "short"  # Invalid password
+    try:
+        validate_password(invalid_password)
+    except ValueError:
+        pass  # This is expected for invalid password testing
+    user_data = {
+        "nickname": "",
+        "email": "invalid_email",
+        "hashed_password": hash_password(invalid_password),
+    }
+    user = User(**user_data)
+    db_session.add(user)
+    await db_session.commit()
+    return user
+
+

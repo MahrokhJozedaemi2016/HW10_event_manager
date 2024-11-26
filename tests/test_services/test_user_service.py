@@ -4,6 +4,8 @@ from sqlalchemy import select
 from app.dependencies import get_settings
 from app.models.user_model import User
 from app.services.user_service import UserService
+from app.utils.security import validate_password
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -113,7 +115,7 @@ async def test_register_user_with_invalid_data(db_session, email_service):
 async def test_login_user_successful(db_session, verified_user):
     user_data = {
         "email": verified_user.email,
-        "password": "MySuperPassword$1234",
+        "password":"MySuperPassword$1234",
     }
     logged_in_user = await UserService.login_user(db_session, user_data["email"], user_data["password"])
     assert logged_in_user is not None

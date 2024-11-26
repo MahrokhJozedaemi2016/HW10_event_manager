@@ -33,8 +33,12 @@ from app.services.jwt_service import create_access_token
 from app.utils.link_generation import create_user_links, generate_pagination_links
 from app.dependencies import get_settings
 from app.services.email_service import EmailService
+from app.utils.security import validate_password
+from logging import getLogger
+from datetime import timedelta
 
 router = APIRouter()
+logger= getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 settings = get_settings()
 
@@ -167,45 +171,55 @@ async def list_users(
 
 @router.post("/register/", response_model=UserResponse, tags=["Login and Registration"])
 async def register(user_data: UserCreate, session: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service)):
-    user = await UserService.register_user(session, user_data.model_dump(), email_service)
-    if user:
-        return user
-    raise HTTPException(status_code=400, detail="Email already exists")
-
+    try:
+        # Validate the password for complexity
+        validate_password(user_data.password)
+        
+        user = await UserService.register_user(session, user_data.model_dump(), email_service)
+        if user:
+            return user
+        raise HTTPException(status_code=400, detail="Email already exists")
+    except ValueError as ve:
+        # Raise HTTP exception if password validation fails
+        raise HTTPException(status_code=422, detail=str(ve))
+    
 @router.post("/login/", response_model=TokenResponse, tags=["Login and Registration"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(get_db)):
-    if await UserService.is_account_locked(session, form_data.username):
-        raise HTTPException(status_code=400, detail="Account locked due to too many failed login attempts.")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Handles user login by validating credentials and generating an access token.
+    """
+    logger.debug(f"Login attempt for email: {form_data.username}")
 
+    # Check if the account is locked
+    if await UserService.is_account_locked(session, form_data.username):
+        logger.warning(f"Account locked for email: {form_data.username}")
+        raise HTTPException(
+            status_code=400,
+            detail="Account locked due to too many failed login attempts."
+        )
+
+    # Authenticate the user
     user = await UserService.login_user(session, form_data.username, form_data.password)
     if user:
-        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+        logger.info(f"Login successful for email: {form_data.username}")
 
+        # Generate access token
+        settings = get_settings()
+        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
         access_token = create_access_token(
             data={"sub": user.email, "role": str(user.role.name)},
             expires_delta=access_token_expires
         )
 
+        logger.debug(f"Access token generated for user: {form_data.username}")
         return {"access_token": access_token, "token_type": "bearer"}
+
+    # If authentication fails
+    logger.error(f"Login failed for email: {form_data.username}")
     raise HTTPException(status_code=401, detail="Incorrect email or password.")
-
-@router.post("/login/", include_in_schema=False, response_model=TokenResponse, tags=["Login and Registration"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(get_db)):
-    if await UserService.is_account_locked(session, form_data.username):
-        raise HTTPException(status_code=400, detail="Account locked due to too many failed login attempts.")
-
-    user = await UserService.login_user(session, form_data.username, form_data.password)
-    if user:
-        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-
-        access_token = create_access_token(
-            data={"sub": user.email, "role": str(user.role.name)},
-            expires_delta=access_token_expires
-        )
-
-        return {"access_token": access_token, "token_type": "bearer"}
-    raise HTTPException(status_code=401, detail="Incorrect email or password.")
-
 
 @router.get("/verify-email/{user_id}/{token}", status_code=status.HTTP_200_OK, name="verify_email", tags=["Login and Registration"])
 async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service)):
