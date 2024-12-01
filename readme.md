@@ -22,7 +22,7 @@ Below are the links to the closed issues that provide insights into the work don
 
 The project has been deployed as a Docker image for easy containerized setup. You can find the image on DockerHub:
 
-[HW10 Event Manager Docker Image](https://hub.docker.com/r/mahrokhjozedaemi/hw10_event_manager)
+[HW10 Event Manager Docker Image](https://hub.docker.com/r/mahrokhjozedaemi/hw10_event_manager/tags)
 
 
 # Reflection Section
