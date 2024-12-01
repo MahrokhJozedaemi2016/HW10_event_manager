@@ -24,6 +24,10 @@ The project has been deployed as a Docker image for easy containerized setup. Yo
 
 [HW10 Event Manager Docker Image](https://hub.docker.com/r/mahrokhjozedaemi/hw10_event_manager/tags)
 
+# Link to the Docker Image
+
+![Docker Image Screenshot](images/Docker_image_HW10.jpg)
+
 
 # Reflection Section
 
