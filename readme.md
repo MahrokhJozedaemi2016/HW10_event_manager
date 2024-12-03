@@ -7,7 +7,6 @@ Welcome to the Event Manager Company! As a newly hired Software QA Analyst/Devel
 # Links to Closed Issues
 
 ## Closed Issues
-
 Below are the links to the closed issues that provide insights into the work done for this project:
 
 1. [Investigate and Fix Pytest Errors](https://github.com/MahrokhJozedaemi2016/HW10_event_manager/issues/1)
