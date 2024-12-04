@@ -7,6 +7,7 @@ import uuid
 import re
 
 from app.utils.nickname_gen import generate_nickname
+from app.utils.security import validate_password
 
 class UserRole(str, Enum):
     ANONYMOUS = "ANONYMOUS"
@@ -35,6 +36,12 @@ def validate_nickname(value: str) -> str:
             "Nickname must start with a letter, be 3-30 characters long, and contain only alphanumeric characters, underscores, or hyphens."
         )
     return value
+
+class UpdateBioRequest(BaseModel):
+    bio: str = Field(..., max_length=500, description="The new bio for the user (max length: 500 characters).",example="Intern software developer with a bachelor degree")
+
+class UpdateProfilePictureRequest(BaseModel):
+    profile_picture_url: str = Field(..., description="The new profile picture URL.", example="https://example.com/profiles/john_new.jpg")
 
 class UserBase(BaseModel):
     email: EmailStr = Field(..., example="john.doe@example.com")
@@ -65,6 +72,12 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     email: EmailStr = Field(..., example="john.doe@example.com")
     password: str = Field(..., example="Secure*1234")
+
+    @validator("password", pre=True, always=True)
+    def validate_password_field(cls, value):
+        if value:
+            validate_password(value)  # Raises a ValueError if invalid
+        return value
 
 class UserUpdate(UserBase):
     email: Optional[EmailStr] = Field(None, example="john.doe@example.com")
