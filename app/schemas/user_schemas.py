@@ -17,33 +17,48 @@ class UserRole(str, Enum):
 def validate_url(url: Optional[str]) -> Optional[str]:
     if url is None:
         return url
-    url_regex = r'^https?:\/\/[\w.-]+(?:\.[\w.-]+)+[\w\-._~:/?#[\]@!$&\'()*+,;=.]+$'
+    url_regex = r'^https?:\/\/[^\s/$.?#].[^\s]*$'
     if not re.match(url_regex, url):
         raise ValueError('Invalid URL format')
     return url
 
-def validate_nickname(nickname: Optional[str]) -> Optional[str]:
-    if nickname is None:
-        return nickname
-    if len(nickname) < 3 or len(nickname) > 30:
-        raise ValueError("Nickname must be between 3 and 30 characters long.")
-    if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
-        raise ValueError("Nickname can only contain letters, numbers, underscores, and hyphens.")
-    return nickname
+def validate_nickname(value: str) -> str:
+    """
+    Validate the nickname according to the rules:
+    - Must start with a letter.
+    - Must be 3-30 characters long.
+    - Can only contain alphanumeric characters, underscores, or hyphens.
+    - Uniqueness is enforced at the service layer and model
+    """
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]{2,29}$", value):
+        raise ValueError(
+            "Nickname must start with a letter, be 3-30 characters long, and contain only alphanumeric characters, underscores, or hyphens."
+        )
+    return value
 
 class UserBase(BaseModel):
     email: EmailStr = Field(..., example="john.doe@example.com")
-    nickname: Optional[str] = Field(None, example=generate_nickname())
+    nickname: Optional[str] = Field(
+        None,
+        example=generate_nickname(),
+        min_length=3,
+        max_length=30
+    )
     first_name: Optional[str] = Field(None, example="John")
     last_name: Optional[str] = Field(None, example="Doe")
     bio: Optional[str] = Field(None, example="Experienced software developer specializing in web applications.")
     profile_picture_url: Optional[str] = Field(None, example="https://example.com/profiles/john.jpg")
-    linkedin_profile_url: Optional[str] = Field(None, example="https://linkedin.com/in/johndoe")
+    linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
 
     _validate_urls = validator('profile_picture_url', 'linkedin_profile_url', 'github_profile_url', pre=True, allow_reuse=True)(validate_url)
-    _validate_nickname = validator('nickname', pre=True, allow_reuse=True)(validate_nickname)
 
+    @validator("nickname", pre=True, always=True)
+    def validate_nickname_field(cls, value):
+        if value:
+            return validate_nickname(value)
+        return value
+ 
     class Config:
         from_attributes = True
 
@@ -53,35 +68,49 @@ class UserCreate(UserBase):
 
 class UserUpdate(UserBase):
     email: Optional[EmailStr] = Field(None, example="john.doe@example.com")
-    nickname: Optional[str] = Field(None, example="john_doe123")
+    nickname: Optional[str] = Field(
+        None,
+        example=generate_nickname(),
+        min_length=3,
+        max_length=30
+    )
     first_name: Optional[str] = Field(None, example="John")
     last_name: Optional[str] = Field(None, example="Doe")
-    bio: Optional[str] = Field(None, max_length=255, example="Experienced software developer specializing in web applications.")
+    bio: Optional[str] = Field(None, example="Experienced software developer specializing in web applications.")
     profile_picture_url: Optional[str] = Field(None, example="https://example.com/profiles/john.jpg")
-    linkedin_profile_url: Optional[str] = Field(None, example="https://linkedin.com/in/johndoe")
+    linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
 
     @root_validator(pre=True)
     def check_at_least_one_value(cls, values):
-        # Check if at least one field is provided for update
         if not any(values.values()):
-            raise ValueError("At least one field must be provided for update.")
+            raise ValueError("At least one field must be provided for update")
         return values
 
-    @validator("bio", pre=True, allow_reuse=True)
-    def validate_bio(cls, bio):
-        if bio is not None and len(bio) > 255:
-            raise ValueError("Bio must not exceed 255 characters.")
-        return bio
-
+    @validator("nickname", pre=True, always=True)
+    def validate_nickname_field(cls, value):
+        if value:
+            return validate_nickname(value)
+        return value
 
 class UserResponse(UserBase):
     id: uuid.UUID = Field(..., example=uuid.uuid4())
     role: UserRole = Field(default=UserRole.AUTHENTICATED, example="AUTHENTICATED")
     email: EmailStr = Field(..., example="john.doe@example.com")
-    nickname: Optional[str] = Field(None, example=generate_nickname())
+    nickname: Optional[str] = Field(
+        None,
+        example=generate_nickname(),
+        min_length=3,
+        max_length=30
+    )  
     role: UserRole = Field(default=UserRole.AUTHENTICATED, example="AUTHENTICATED")
     is_professional: Optional[bool] = Field(default=False, example=True)
+
+    @validator("nickname", pre=True, always=True)
+    def validate_nickname_field(cls, value):
+        if value:
+            return validate_nickname(value)
+        return value
 
 class LoginRequest(BaseModel):
     email: str = Field(..., example="john.doe@example.com")
