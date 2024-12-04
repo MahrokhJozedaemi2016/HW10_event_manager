@@ -4,6 +4,7 @@ from starlette.responses import JSONResponse
 from app.database import Database
 from app.dependencies import get_settings
 from app.routers import user_routes
+from app.routers import health_routes
 from app.utils.api_description import getDescription
 app = FastAPI(
     title="User Management",
@@ -27,3 +28,4 @@ async def exception_handler(request, exc):
     return JSONResponse(status_code=500, content={"message": "An unexpected error occurred."})
 
 app.include_router(user_routes.router)
+app.include_router(health_routes.router)  # Add the health check routes here

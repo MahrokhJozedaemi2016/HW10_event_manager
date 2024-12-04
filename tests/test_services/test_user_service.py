@@ -7,6 +7,10 @@ from app.dependencies import get_settings
 from app.models.user_model import User
 from app.services.user_service import UserService
 from app.schemas.user_schemas import UserCreate, UserUpdate
+from app.utils.security import validate_password
+from app.utils.security import hash_password, verify_password
+from app.dependencies import get_settings
+    
 
 pytestmark = pytest.mark.asyncio
 
@@ -114,7 +118,7 @@ async def test_register_user_with_invalid_data(db_session, email_service):
 # Test successful user login
 async def test_login_user_successful(db_session, verified_user):
     user_data = {
-        "email": verified_user.email,
+        "email": verified_user.nickname,
         "password": "MySuperPassword$1234",
     }
     logged_in_user = await UserService.login_user(db_session, user_data["email"], user_data["password"])
@@ -134,7 +138,7 @@ async def test_login_user_incorrect_password(db_session, user):
 async def test_account_lock_after_failed_logins(db_session, verified_user):
     max_login_attempts = get_settings().max_login_attempts
     for _ in range(max_login_attempts):
-        await UserService.login_user(db_session, verified_user.email, "wrongpassword")
+        await UserService.login_user(db_session, verified_user.nickname, "wrongpassword")
     
     is_locked = await UserService.is_account_locked(db_session, verified_user.email)
     assert is_locked, "The account should be locked after the maximum number of failed login attempts."
@@ -249,3 +253,83 @@ async def test_create_user_successful_with_no_nickname(db_session: AsyncSession,
     new_user = await UserService.create(db_session, user_data, email_service)
     assert new_user is not None
     assert new_user.nickname is not None  # Nickname should be auto-generated
+
+@pytest.mark.parametrize("password", [
+    "Short1!",  # Too short
+    "alllowercase1!",  # No uppercase
+    "ALLUPPERCASE1!",  # No lowercase
+    "NoNumbers!",  # No digits
+    "NoSpecials1"  # No special characters
+])
+def test_invalid_passwords(password):
+    with pytest.raises(ValueError):
+        validate_password(password)
+
+
+@pytest.mark.parametrize("password", [
+    "ValidPass1!",  # Meets all criteria
+    "Complex$123"  # Meets all criteria
+])
+def test_valid_passwords(password):
+    assert validate_password(password) is True
+
+
+@pytest.mark.asyncio
+async def test_user_creation_with_valid_password(db_session: AsyncSession, email_service: AsyncMock):
+    user_data = {
+        "email": "testuser@example.com",
+        "password": "ValidPass1!",
+        "first_name": "Test",
+        "last_name": "User",
+    }
+    created_user = await UserService.create(db_session, user_data, email_service)
+
+    assert created_user is not None
+    assert created_user.email == "testuser@example.com"
+    assert created_user.first_name == "Test"
+    assert created_user.last_name == "User"
+    assert created_user.hashed_password is not None
+
+
+@pytest.mark.asyncio
+async def test_user_creation_with_invalid_password(db_session: AsyncSession, email_service: AsyncMock):
+    user_data = {
+        "email": "testuser@example.com",
+        "password": "short1!",  # Invalid password
+        "first_name": "Test",
+        "last_name": "User",
+    }
+    created_user = await UserService.create(db_session, user_data, email_service)
+    assert created_user is None
+
+
+def test_password_hashing():
+    plain_password = "SecurePass123!"
+    hashed_password = hash_password(plain_password)
+
+    # Ensure the hashed password is not the same as the plain password
+    assert hashed_password != plain_password
+
+    # Verify the hashed password matches the original password
+    assert verify_password(plain_password, hashed_password)
+
+def test_invalid_password_verification():
+    plain_password = "SecurePass123!"
+    wrong_password = "WrongPass123!"
+    hashed_password = hash_password(plain_password)
+
+    # Ensure wrong password does not match
+    assert not verify_password(wrong_password, hashed_password)
+
+@pytest.mark.asyncio
+async def test_login_user_locked_account(db_session, locked_user):
+    """Test login fails for locked accounts."""
+    result = await UserService.login_user(db_session, locked_user.nickname, "correctpassword")
+    assert result is None, "Login should fail for locked accounts"
+
+@pytest.mark.asyncio
+async def test_reset_password_for_nonexistent_user(db_session):
+    """Test reset_password fails for non-existent users."""
+    success = await UserService.reset_password(db_session, "non-existent-id", "NewPassword123!")
+    assert success is False, "Reset should fail for non-existent users"
+    

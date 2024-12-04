@@ -44,7 +44,7 @@ async def test_bulk_user_creation_performance(db_session, users_with_same_role_5
 
 @pytest.mark.asyncio
 async def test_password_hashing(user):
-    assert verify_password("ValidPass#1234", user.hashed_password)
+    assert verify_password("MySuperPassword$1234", user.hashed_password)
 
 @pytest.mark.asyncio
 async def test_user_unlock(db_session, locked_user):
