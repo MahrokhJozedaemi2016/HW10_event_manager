@@ -170,7 +170,7 @@ During the improvement of nickname validation, it was discovered that the system
 The system must enforce uniqueness for nicknames at both the application and database layers.
 Any attempt to create or modify a user with a duplicate nickname should result in an error, providing a clear and actionable message to the user.
 
-### Username Uniqueness Test
+### Username Uniqueness Test       
 
 ![Username Uniqueness Test Results](images/test_schemas.jpg)
 
